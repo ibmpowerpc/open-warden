@@ -1,0 +1,14 @@
+[provider]
+id = "routerai"
+name = "RouterAI"
+npm = "@ai-sdk/openai-compatible"
+base_url = "https://routerai.ru/api/v1"
+api_key_env = "ROUTERAI_API_KEY"
+
+[model]
+id = "anthropic/claude-sonnet-4.6"
+name = "Claude Sonnet 4.6 (RouterAI)"
+
+[paths]
+prompt = "review-prompt.md"
+scratch_dir = "tmp/opencode"
