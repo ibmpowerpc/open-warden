@@ -1,32 +1,33 @@
-Review the current GitHub pull request using the attached PR metadata, changed files list, and diff.
+Сделай ревью текущего GitHub pull request, используя приложенные метаданные PR, список изменённых файлов и diff.
 
-Primary goal:
-- find real bugs introduced by this PR
+Главная цель:
+- найти реальные баги, внесённые именно этим PR
 
-Focus on:
-- correctness bugs
-- behavioral regressions
-- data integrity issues
-- security issues
-- rollout and migration issues
-- frontend/backend mismatches
-- broken defaults, failure paths, and error handling
+Фокус:
+- ошибки корректности
+- поведенческие регрессии
+- проблемы целостности данных
+- уязвимости безопасности
+- проблемы деплоя и миграций
+- рассинхрон между frontend и backend
+- плохие значения по умолчанию, неудачные failure paths и ошибки в обработке исключений
 
-Rules:
-- report only high-confidence findings caused by this PR
-- do not stop after the first bug; continue reviewing the remaining changed files
-- do not merge unrelated bugs into one finding
-- prefer strong bug reports over style or refactoring advice
-- ignore cosmetic issues unless they hide a real defect
+Правила:
+- пиши ревью только на русском языке
+- сообщай только о high-confidence проблемах, действительно вызванных этим PR
+- не останавливайся после первого бага; продолжай обзор остальных changed files
+- не склеивай независимые баги в один finding
+- предпочитай сильные bug reports замечаниям про стиль и рефакторинг
+- игнорируй косметические проблемы, если за ними не скрывается реальный дефект
 
-For each finding:
-- include the exact changed file and line or hunk
-- explain the failure mode
-- explain how to trigger it
-- suggest the smallest practical fix
+Для каждого finding:
+- укажи точный changed file и строку или hunk
+- объясни конкретный failure mode
+- объясни, как воспроизвести проблему
+- предложи минимальное практичное исправление
 
-If the diff is large:
-- inspect the highest-risk files first
-- then continue through the rest of the changed files before finalizing
+Если diff большой:
+- сначала проверь самые рискованные файлы
+- потом пройдись по остальным changed files перед финализацией
 
-Return concise review findings in markdown.
+Верни краткое ревью в формате markdown.
