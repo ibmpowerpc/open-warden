@@ -8,13 +8,28 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any, NoReturn, TypedDict, cast
 
 
 DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
 PR_FIELDS = "number,title,body,baseRefName,headRefName,url,files"
 
 
-def fail(message: str, exit_code: int = 1) -> "NoReturn":
+class PullRequestFile(TypedDict, total=False):
+    path: str
+
+
+class PullRequestData(TypedDict):
+    number: int
+    title: str
+    body: str
+    baseRefName: str
+    headRefName: str
+    url: str
+    files: list[PullRequestFile]
+
+
+def fail(message: str, exit_code: int = 1) -> NoReturn:
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(exit_code)
 
@@ -41,8 +56,9 @@ def run_checked(
             capture_output=capture_output,
         )
     except subprocess.CalledProcessError as exc:
-        if exc.stderr:
-            print(exc.stderr.rstrip(), file=sys.stderr)
+        stderr = str(exc.stderr or "")
+        if stderr:
+            print(stderr.rstrip(), file=sys.stderr)
         fail(f"command failed: {' '.join(args)}", exc.returncode)
 
 
@@ -60,26 +76,29 @@ def get_repo_root() -> Path:
 def load_prompt(repo_root: Path) -> str:
     prompt_path = repo_root / "tools" / "opencode" / "review-prompt.md"
     try:
-        return prompt_path.read_text(encoding="utf-8").strip()
+        prompt = prompt_path.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         fail(f"review prompt not found: {prompt_path}")
+    return prompt
 
 
-def get_current_pr(repo_root: Path) -> dict:
+def get_current_pr(repo_root: Path) -> PullRequestData:
     result = run_checked(
         ["gh", "pr", "view", "--json", PR_FIELDS],
         cwd=repo_root,
         capture_output=True,
     )
     try:
-        return json.loads(result.stdout)
+        return cast(PullRequestData, json.loads(result.stdout))
     except json.JSONDecodeError as exc:
         fail(f"failed to parse gh pr view output as JSON: {exc}")
 
 
-def write_supporting_files(tmp_dir: Path, pr_data: dict, repo_root: Path) -> tuple[Path, Path, Path]:
+def write_supporting_files(
+    tmp_dir: Path, pr_data: PullRequestData, repo_root: Path
+) -> tuple[Path, Path, Path]:
     pr_json_path = tmp_dir / "pr.json"
-    pr_json_path.write_text(
+    _ = pr_json_path.write_text(
         json.dumps(pr_data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -91,12 +110,13 @@ def write_supporting_files(tmp_dir: Path, pr_data: dict, repo_root: Path) -> tup
         capture_output=True,
     )
     pr_diff_path = tmp_dir / "pr.diff"
-    pr_diff_path.write_text(diff_result.stdout, encoding="utf-8")
+    _ = pr_diff_path.write_text(diff_result.stdout, encoding="utf-8")
 
     changed_files_path = tmp_dir / "changed-files.txt"
-    changed_files = [item.get("path", "") for item in pr_data.get("files", [])]
-    changed_files_path.write_text(
-        "\n".join(path for path in changed_files if path) + ("\n" if changed_files else ""),
+    changed_files = [item.get("path", "") for item in pr_data["files"]]
+    _ = changed_files_path.write_text(
+        "\n".join(path for path in changed_files if path)
+        + ("\n" if changed_files else ""),
         encoding="utf-8",
     )
 
@@ -104,7 +124,7 @@ def write_supporting_files(tmp_dir: Path, pr_data: dict, repo_root: Path) -> tup
 
 
 def build_opencode_config(tmp_dir: Path, model_id: str) -> Path:
-    config = {
+    config: dict[str, Any] = {
         "$schema": "https://opencode.ai/config.json",
         "provider": {
             "routerai": {
@@ -124,14 +144,14 @@ def build_opencode_config(tmp_dir: Path, model_id: str) -> Path:
     }
 
     config_path = tmp_dir / "opencode.json"
-    config_path.write_text(
+    _ = config_path.write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     return config_path
 
 
-def build_message(pr_data: dict, prompt: str) -> str:
+def build_message(pr_data: PullRequestData, prompt: str) -> str:
     return (
         f"Current pull request:\n"
         f"- Number: #{pr_data['number']}\n"
@@ -184,7 +204,9 @@ def run_opencode(
 
 def main() -> int:
     require_command("opencode", "opencode is not installed or not in PATH")
-    require_command("gh", "gh CLI is required to inspect the current GitHub pull request")
+    require_command(
+        "gh", "gh CLI is required to inspect the current GitHub pull request"
+    )
 
     if not os.environ.get("ROUTERAI_API_KEY"):
         fail("ROUTERAI_API_KEY is not set")
