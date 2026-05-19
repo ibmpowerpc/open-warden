@@ -1,47 +1,27 @@
-Сделай ревью текущего GitHub pull request, используя приложенные метаданные PR, список изменённых файлов и diff.
+Сделай ревью текущего GitHub pull request, используя приложенные `pr.json`, `changed-files.txt` и `pr.diff`.
 
-Пиши ревью только на русском языке.
+Пиши только на русском языке.
 
-Главная цель:
-- найти реальные баги, внесённые именно этим PR
-- отфильтровать слабые замечания, стиль, вкусовщину и общие architectural risks без конкретного failure mode
+Цель: найти реальные баги, внесённые именно этим PR. Не пиши про стиль, вкусовщину, рефакторинг и общие best practices без конкретного failure mode.
 
-Обязательный порядок анализа:
-1. Сначала составь внутренний inventory всех changed files и ранжируй их по риску.
-2. Глубоко проверь high-risk файлы, затем пройдись по остальным changed files.
-3. Для каждого high-risk изменения проверь, какой инвариант оно добавляет или меняет.
-4. После первого найденного бага продолжай ревью остальных changed files.
-5. Перед финальным ответом ещё раз проверь, не пропущены ли более сильные баги, чем уже найденные.
+Проверь в первую очередь:
+- корректность и регрессии поведения
+- data integrity и dangling references
+- validation gaps и nullable/empty значения
+- frontend/backend mismatch
+- rollout/migration/runtime failures
+- timeout, retry, rollback, non-JSON/network failure paths
+- performance issues только с понятным сценарием деградации
 
-Классы багов, которые нужно проверить явно:
-- изменение схемы БД без миграции или с ручным rollout
-- frontend/backend mismatch: значения формы, имена параметров, default selections, routes, JSON shape
-- validation gaps: входные данные из формы/API, allowlist, nullable fields, размер данных
-- post-validation mutations: код, который меняет уже провалидированные данные и может нарушить инварианты
-- data integrity: ссылки между объектами, id, foreign keys, dangling references, duplicate handling
-- state-changing endpoints: auth, authorization, CSRF, rate/cost abuse, повторные запросы
-- failure paths: timeout, non-JSON response, network failure, rollback, user-visible stuck UI
-- deployment/runtime limits: worker timeout, proxy timeout, missing env/config, dependency changes
+Верни только findings в таком формате:
 
-Правила отбора findings:
-- сообщай только о high-confidence проблемах, действительно вызванных этим PR
-- finding должен иметь конкретный путь воспроизведения или очень чёткий production failure mode
-- если проблема уже существовала до PR и PR её не усиливает, не включай её
-- не склеивай независимые баги в один finding
-- не включай maintenance notes вроде hardcoded URL, duplicate config, naming, unused dependency, если они не ломают поведение
-- не включай cosmetic/UI-style замечания
-- лучше 3 сильных finding, чем 10 слабых
-- если видишь только слабые пункты, явно не повышай им severity
+### [SEVERITY] `path/to/file.py:123`
+Коротко опиши проблему, когда она проявится и минимальное исправление. Максимум 80 слов.
 
-Для каждого finding:
-- укажи severity: CRITICAL, HIGH, MEDIUM или LOW
-- укажи точный changed file и строку или hunk
-- объясни конкретный failure mode
-- объясни, как воспроизвести проблему
-- предложи минимальное практичное исправление
-
-Особая проверка перед финалом:
-- Если среди findings нет ни одного про data integrity, validation или rollout, перепроверь самые рискованные changed files.
-- Если finding похож на совет по поддерживаемости, убери его, если нет доказанного user-visible, runtime или deployment failure.
-
-Верни только итоговое ревью в markdown. Не показывай внутренний inventory и ход рассуждений.
+Правила:
+- SEVERITY: CRITICAL, HIGH, MEDIUM или LOW.
+- Один finding = один заголовок и один короткий абзац.
+- Не используй подзаголовки, списки, таблицы, code blocks, summary, intro, outro или verdict.
+- Не используй line ranges. Указывай одну наиболее близкую строку из изменённого diff.
+- Если точную строку определить нельзя, используй ближайшую изменённую строку в том же файле.
+- Если сильных findings нет, верни ровно `NO_FINDINGS`.

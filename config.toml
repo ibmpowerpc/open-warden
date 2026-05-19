@@ -6,8 +6,9 @@ base_url = "https://routerai.ru/api/v1"
 api_key_env = "ROUTERAI_API_KEY"
 
 [model]
-id = "anthropic/claude-sonnet-4.6"
-name = "Claude Sonnet 4.6 (RouterAI)"
+id = "deepseek/deepseek-v4-pro"
+name = "DeepSeek V4 Pro"
+fallback_ids = ["anthropic/claude-sonnet-4.6"]
 
 [paths]
 prompt = "review-prompt.md"
