@@ -1,15 +1,14 @@
 # open-warden
 
-Локальная CLI-утилита для AI-ревью текущего GitHub pull request через OpenCode.
+CLI-утилита для AI-ревью GitHub pull request через OpenCode.
 
 ## Требования
 
 - Python 3.11+
 - `opencode`
 - GitHub CLI `gh`
-- авторизация через `gh auth login`
-- открытый GitHub PR для текущей ветки
-- API-ключ провайдера из `config.toml`
+- авторизация в GitHub через `gh auth login`
+- API-ключ провайдера модели
 
 Для текущего конфига:
 
@@ -19,36 +18,35 @@ export ROUTERAI_API_KEY=...
 
 ## Запуск
 
-Из любого репозитория с открытым PR:
+Из репозитория, где текущая ветка связана с открытым PR:
 
 ```bash
 /path/to/run_pr_review.py
 ```
 
-## Конфиг
-
-Настройки лежат в `config.toml`.
-
-По умолчанию используется RouterAI и Claude Sonnet:
-
-```toml
-[provider]
-id = "routerai"
-base_url = "https://routerai.ru/api/v1"
-api_key_env = "ROUTERAI_API_KEY"
-
-[model]
-id = "anthropic/claude-sonnet-4.6"
-
-[paths]
-prompt = "review-prompt.md"
-scratch_dir = "tmp/opencode"
-```
-
-Временно переопределить модель:
+Для конкретного PR:
 
 ```bash
-export OPENCODE_REVIEW_MODEL=deepseek/deepseek-v4-pro
+/path/to/run_pr_review.py \
+  --pr-url https://github.com/owner/repository/pull/123
+```
+
+Опубликовать результат в PR одним комментарием:
+
+```bash
+/path/to/run_pr_review.py \
+  --ci-mode \
+  --pr-url https://github.com/owner/repository/pull/123
+```
+
+## Настройка
+
+Основные настройки лежат в `config.toml`.
+
+Переопределить модель на один запуск:
+
+```bash
+export OPENCODE_REVIEW_MODEL=anthropic/claude-sonnet-4.6
 ```
 
 Использовать другой конфиг:
@@ -57,3 +55,19 @@ export OPENCODE_REVIEW_MODEL=deepseek/deepseek-v4-pro
 export OPENCODE_REVIEW_CONFIG=/path/to/config.toml
 ```
 
+## CI
+
+Для публикации комментариев в GitHub PR нужны права:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+```
+
+Минимальный запуск:
+
+```bash
+/path/to/run_pr_review.py --ci-mode --pr-url "$PR_URL"
+```
