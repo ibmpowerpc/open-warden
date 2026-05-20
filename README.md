@@ -2,36 +2,25 @@
 
 CLI-утилита для AI-ревью GitHub pull request через OpenCode.
 
-## Требования
+#### 1. Локальный запуск
 
-- Python 3.11+
-- `opencode`
-- GitHub CLI `gh`
-- авторизация в GitHub через `gh auth login`
-- API-ключ провайдера модели
-
-Для текущего конфига:
+Запустите ревью для текущего pull request из локального репозитория:
 
 ```bash
-export ROUTERAI_API_KEY=...
-```
-
-## Запуск
-
-Из репозитория, где текущая ветка связана с открытым PR:
-
-```bash
+export ROUTERAI_API_KEY=your_key_here
 /path/to/run_pr_review.py
 ```
 
-Для конкретного PR:
+Или укажите pull request явно:
 
 ```bash
 /path/to/run_pr_review.py \
   --pr-url https://github.com/owner/repository/pull/123
 ```
 
-Опубликовать результат в PR одним комментарием:
+#### 2. Публикация комментария в PR
+
+Добавьте флаг `--ci-mode`, чтобы опубликовать результат ревью одним комментарием в pull request:
 
 ```bash
 /path/to/run_pr_review.py \
@@ -39,9 +28,45 @@ export ROUTERAI_API_KEY=...
   --pr-url https://github.com/owner/repository/pull/123
 ```
 
-## Настройка
+Для публикации нужны авторизация GitHub CLI и права на комментарии в PR:
 
-Основные настройки лежат в `config.toml`.
+```bash
+gh auth login
+```
+
+#### 3. GitHub Actions
+
+Минимальный workflow для автоматического ревью pull request:
+
+```yaml
+# .github/workflows/open-warden.yml
+name: Open Warden
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run AI review
+        run: /path/to/run_pr_review.py --ci-mode --pr-url "$PR_URL"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROUTERAI_API_KEY: ${{ secrets.ROUTERAI_API_KEY }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+```
+
+#### 4. Настройка
+
+Основные настройки находятся в `config.toml`.
 
 Переопределить модель на один запуск:
 
@@ -53,21 +78,4 @@ export OPENCODE_REVIEW_MODEL=anthropic/claude-sonnet-4.6
 
 ```bash
 export OPENCODE_REVIEW_CONFIG=/path/to/config.toml
-```
-
-## CI
-
-Для публикации комментариев в GitHub PR нужны права:
-
-```yaml
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-```
-
-Минимальный запуск:
-
-```bash
-/path/to/run_pr_review.py --ci-mode --pr-url "$PR_URL"
 ```
