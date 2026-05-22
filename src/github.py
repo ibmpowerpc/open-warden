@@ -143,11 +143,8 @@ def publish_review_comment(
     repo_slug: str,
     pr_number: int,
     body: str,
-    edit_last: bool,
 ) -> None:
     command = ["gh", "pr", "comment", str(pr_number), "--repo", repo_slug]
-    if edit_last:
-        command.extend(["--edit-last", "--create-if-none"])
     command.extend(["--body", body])
     run_checked(command, cwd=repo_root)
 
@@ -170,7 +167,6 @@ def publish_summary_comment(
         repo_slug=repo_slug,
         pr_number=pr_number,
         body=body,
-        edit_last=True,
     )
 
 
