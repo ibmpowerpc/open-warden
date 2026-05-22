@@ -13,15 +13,35 @@
 - timeout, retry, rollback, non-JSON/network failure paths
 - performance issues только с понятным сценарием деградации
 
-Верни только findings в таком формате:
+Верни только JSON без markdown, без code fences и без пояснений. Ответ должен соответствовать схеме:
 
-### [SEVERITY] `path/to/file.py:123`
-Коротко опиши проблему, когда она проявится и минимальное исправление. Максимум 80 слов.
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings"],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "path", "line", "body"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]},
+          "path": {"type": "string"},
+          "line": {"type": "integer", "minimum": 1},
+          "body": {"type": "string"}
+        }
+      }
+    }
+  }
+}
 
 Правила:
 - SEVERITY: CRITICAL, HIGH, MEDIUM или LOW.
-- Один finding = один заголовок и один короткий абзац.
-- Не используй подзаголовки, списки, таблицы, code blocks, summary, intro, outro или verdict.
-- Не используй line ranges. Указывай одну наиболее близкую строку из изменённого diff.
+- Один finding = один объект.
+- `path` должен быть путём файла из diff.
+- `line` должен быть одной наиболее близкой строкой из изменённого diff.
+- `body` должен быть на русском языке, максимум 80 слов.
 - Если точную строку определить нельзя, используй ближайшую изменённую строку в том же файле.
-- Если сильных findings нет, верни ровно `NO_FINDINGS`.
+- Если сильных findings нет, верни ровно `{ "findings": [] }`.
