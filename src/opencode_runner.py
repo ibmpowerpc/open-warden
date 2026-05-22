@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -6,7 +7,7 @@ from pathlib import Path
 from src.config import get_opencode_attempts
 from src.prompts import build_candidate_message
 from src.prompts import build_selection_message
-from src.prompts import clean_review_output
+from src.prompts import validate_review_json
 from src.prompts import validate_final_review_output
 from src.types import PullRequestData
 from src.types import ReviewToolError
@@ -131,7 +132,12 @@ def run_two_pass_review(
 
     candidate_path = tmp_dir / "candidate-findings.md"
     _ = candidate_path.write_text(
-        clean_review_output(candidate_result) + "\n",
+        json.dumps(
+            validate_review_json(candidate_result),
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
 

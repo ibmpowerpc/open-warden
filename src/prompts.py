@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -5,6 +6,36 @@ from src.config import config_str
 from src.config import get_section
 from src.process import fail
 from src.types import PullRequestData
+
+VALID_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+REVIEW_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["findings"],
+    "properties": {
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["severity", "path", "line", "body"],
+                "properties": {
+                    "severity": {
+                        "type": "string",
+                        "enum": sorted(VALID_SEVERITIES),
+                    },
+                    "path": {"type": "string"},
+                    "line": {"type": "integer", "minimum": 1},
+                    "body": {"type": "string"},
+                },
+            },
+        }
+    },
+}
+
+
+def review_response_schema_text() -> str:
+    return json.dumps(REVIEW_RESPONSE_SCHEMA, ensure_ascii=False, indent=2)
 
 
 def load_prompt(script_dir: Path, config: dict[str, Any]) -> str:
@@ -64,33 +95,99 @@ def build_selection_message(pr_data: PullRequestData) -> str:
         "- В финальный ответ оставь максимум 5 самых серьёзных findings.\n"
         "- Приоритет: CRITICAL, HIGH, затем MEDIUM. LOW включай только если нет более серьёзных.\n"
         "- Не добавляй finding, если не можешь объяснить, когда он реально проявится.\n"
-        "- Если после повторного анализа нет убедительных багов, верни ровно `NO_FINDINGS`.\n\n"
-        "Формат ответа строго markdown, без JSON и без fenced code blocks:\n\n"
-        "### [SEVERITY] `path/to/file.py:123`\n"
-        "Коротко опиши проблему, когда она проявится и минимальное исправление. Максимум 80 слов.\n\n"
-        "Не используй intro, summary, outro, verdict, таблицы или списки.\n"
+        '- Если после повторного анализа нет убедительных багов, верни ровно `{ "findings": [] }`.\n\n'
+        "Формат ответа строго JSON, без markdown, без fenced code blocks, без intro, summary, outro или verdict.\n"
+        "Ответ должен соответствовать этой JSON-схеме:\n\n"
+        f"{review_response_schema_text()}\n"
     )
 
 
-def clean_review_output(text: str) -> str:
+def extract_json_object(text: str) -> str:
     stripped = text.strip()
-    if stripped == "NO_FINDINGS":
-        return stripped
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
 
-    lines = stripped.splitlines()
-    for index, line in enumerate(lines):
-        if line.startswith("### ["):
-            return "\n".join(lines[index:]).strip()
-    return stripped
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        fail("model response does not contain a JSON object")
+    return stripped[start : end + 1]
+
+
+def validate_review_json(text: str) -> dict[str, Any]:
+    raw_json = extract_json_object(text)
+    try:
+        payload = json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        fail(f"model response is not valid JSON: {exc}")
+
+    if not isinstance(payload, dict):
+        fail("model JSON response must be an object")
+
+    unexpected_keys = set(payload) - {"findings"}
+    if unexpected_keys:
+        fail(f"model JSON response contains unexpected keys: {sorted(unexpected_keys)}")
+
+    findings = payload.get("findings")
+    if not isinstance(findings, list):
+        fail("model JSON response must contain a findings array")
+
+    normalized_findings: list[dict[str, Any]] = []
+    for index, finding in enumerate(findings, start=1):
+        if not isinstance(finding, dict):
+            fail(f"finding #{index} must be an object")
+
+        unexpected_finding_keys = set(finding) - {"severity", "path", "line", "body"}
+        if unexpected_finding_keys:
+            fail(
+                f"finding #{index} contains unexpected keys: "
+                f"{sorted(unexpected_finding_keys)}"
+            )
+
+        severity = finding.get("severity")
+        path = finding.get("path")
+        line = finding.get("line")
+        body = finding.get("body")
+
+        if not isinstance(severity, str) or severity not in VALID_SEVERITIES:
+            fail(f"finding #{index} has invalid severity")
+        if not isinstance(path, str) or not path:
+            fail(f"finding #{index} has invalid path")
+        if not isinstance(line, int) or line < 1:
+            fail(f"finding #{index} has invalid line")
+        if not isinstance(body, str) or not body.strip():
+            fail(f"finding #{index} has invalid body")
+
+        normalized_findings.append(
+            {
+                "severity": severity,
+                "path": path,
+                "line": line,
+                "body": body.strip(),
+            }
+        )
+
+    return {"findings": normalized_findings}
+
+
+def review_json_to_markdown(payload: dict[str, Any]) -> str:
+    findings = payload["findings"]
+    if not findings:
+        return "NO_FINDINGS"
+
+    sections: list[str] = []
+    for finding in findings:
+        sections.append(
+            f"### [{finding['severity']}] `{finding['path']}:{finding['line']}`\n"
+            f"{finding['body']}"
+        )
+    return "\n\n".join(sections)
 
 
 def validate_final_review_output(text: str) -> str:
-    cleaned = clean_review_output(text)
-    if cleaned == "NO_FINDINGS":
-        return cleaned
-
-    if cleaned.startswith("{") or cleaned.startswith("[") or "```" in cleaned:
-        fail("final OpenCode review is not markdown findings")
-    if "### [" not in cleaned:
-        fail("final OpenCode review does not contain markdown findings")
-    return cleaned
+    return review_json_to_markdown(validate_review_json(text))
