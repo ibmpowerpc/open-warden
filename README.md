@@ -1,5 +1,7 @@
 # open-warden
 
+[![CI](https://github.com/ibmpowerpc/open-warden/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ibmpowerpc/open-warden/actions/workflows/ci.yml)
+
 CLI-утилита для AI-ревью GitHub pull request через OpenCode.
 
 #### 1. Локальный запуск
